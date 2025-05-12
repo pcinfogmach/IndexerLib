@@ -50,4 +50,14 @@ namespace IndexerLib.Helpers
         }
     }
 
-}
+      //static int CompareHash(byte[] a, byte[] b)
+      //  {
+      //      for (int i = 0; i < a.Length; i++)
+      //      {
+      //          int diff = a[i] - b[i];
+      //          if (diff != 0) return diff;
+      //      }
+      //      return 0;
+      //  }
+
+    }

@@ -14,12 +14,12 @@ namespace IndexerLibConsoleDemo
         {
             Console.OutputEncoding = Encoding.GetEncoding("Windows-1255");
 
-            string indexPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Index");
-            string toratEmet = "C:\\Users\\Admin\\Desktop\\תורת אמת";
-            var files = Directory.GetFiles(toratEmet, "*", SearchOption.AllDirectories);
-            FileIndexer.CreateIndex(files);
+            //string indexPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Index");
+            //string toratEmet = "C:\\Users\\Admin\\Desktop\\תורת אמת\\01_תנך";
+            //var files = Directory.GetFiles(toratEmet, "*", SearchOption.AllDirectories);
+            //FileIndexer.CreateIndex(files);
 
-            var results = Search.UnorderedProximitySearch("כי ביצחק", proximity: 3);
+            var results = AdvancedSearch.UnorderedProximitySearch("כי | אבל ביצחק", proximity: 3);
             var generator = new SnippetGenerator();
 
             foreach (var res in results)

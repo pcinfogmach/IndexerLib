@@ -1,4 +1,5 @@
-﻿using System;
+﻿using IndexerLib.Helpers;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,6 +9,7 @@ namespace IndexerLib.Index
 {
     public class IndexReader : IndexBase
     {
+        ByteArrayComparer byteComparer = new ByteArrayComparer();
         FileStream fileStream;
         BinaryReader reader;
         long indexStart;
@@ -112,39 +114,33 @@ namespace IndexerLib.Index
             while (low <= high)
             {
                 int mid = (low + high) / 2;
-                var entry = ReadIndexEntry(mid);
-                int cmp = CompareHash(entry.Hash, targetHash);
 
-                if (cmp == 0) return entry;
-                if (cmp < 0) low = mid + 1;
-                else high = mid - 1;
+                long entryPos = indexStart + 4 + (mid * 44); // +4 skips the initial count
+                reader.BaseStream.Seek(entryPos, SeekOrigin.Begin);
+                byte[] hash = reader.ReadBytes(32);
+
+                int cmp = byteComparer.Compare(hash, targetHash);
+
+                if (cmp == 0)
+                {
+                    long offset = reader.ReadInt64();
+                    int length = reader.ReadInt32();
+
+                    return new IndexKey
+                    {
+                        Hash = hash,
+                        Offset = offset,
+                        Length = length
+                    };
+                }
+
+                if (cmp < 0)
+                    low = mid + 1;
+                else
+                    high = mid - 1;
             }
 
             return null;
-        }
-
-        IndexKey ReadIndexEntry(int index)
-        {
-            fileStream.Seek(indexStart, SeekOrigin.Begin);
-
-            int count = reader.ReadInt32();
-            reader.BaseStream.Seek(index * 44, SeekOrigin.Current);
-
-            byte[] hash = reader.ReadBytes(32);
-            long offset = reader.ReadInt64();
-            int length = reader.ReadInt32();
-
-            return new IndexKey { Hash = hash, Offset = offset, Length = length };
-        }
-
-        static int CompareHash(byte[] a, byte[] b)
-        {
-            for (int i = 0; i < a.Length; i++)
-            {
-                int diff = a[i] - b[i];
-                if (diff != 0) return diff;
-            }
-            return 0;
         }
 
         public byte[] ReadBlock(IndexKey entry)
@@ -165,6 +161,38 @@ namespace IndexerLib.Index
         }
     }
 }
+
+//IndexKey BinarySearchIndex(byte[] targetHash)
+//{
+//    int low = 0, high = indexCount - 1;
+
+//    while (low <= high)
+//    {
+//        int mid = (low + high) / 2;
+//        var entry = ReadIndexEntry(mid);
+//        int cmp = byteComparer.Compare(entry.Hash, targetHash);
+
+//        if (cmp == 0) return entry;
+//        if (cmp < 0) low = mid + 1;
+//        else high = mid - 1;
+//    }
+
+//    return null;
+//}
+
+//IndexKey ReadIndexEntry(int index)
+//{
+//    fileStream.Seek(indexStart, SeekOrigin.Begin);
+
+//    int count = reader.ReadInt32();
+//    reader.BaseStream.Seek(index * 44, SeekOrigin.Current);
+
+//    byte[] hash = reader.ReadBytes(32);
+//    long offset = reader.ReadInt64();
+//    int length = reader.ReadInt32();
+
+//    return new IndexKey { Hash = hash, Offset = offset, Length = length };
+//}
 
 
 //public Dictionary<string, byte[]> GetAll(string[] keys)
