@@ -1,12 +1,10 @@
-﻿using IndexerLib.Index;
+﻿using IndexerLib.Helpers;
+using IndexerLib.Index;
 using IndexerLib.Tokens;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace IndexerLib.IndexManger
 {
@@ -15,51 +13,23 @@ namespace IndexerLib.IndexManger
         public static List<SearchResult> UnorderedProximitySearch(string query, int proximity = 3)
         {
             query = Regex.Replace(query, @"\s*\|\s*", "|");
+            query = Regex.Replace(query, @"\s*\~", "~");
 
             var termGroups = query
-                .Trim()
-                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => t.Split('|'))
-                .ToList();
+                 .Trim()
+                 .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                 .Select(t => QueryParser.ParseTerm(t).ToArray())
+                 .ToList();
 
-            var tokens = new Dictionary<string, List<Token>>();
+            var tokens = GetTokens(termGroups);
+            var fileGroups = GetFileGroups(termGroups, tokens);
 
-            using (var indexReader = new IndexReader())
-            {
-                foreach (var group in termGroups)
-                {
-                    foreach (var term in group)
-                    {
-                        if (!tokens.ContainsKey(term))
-                            tokens[term] = new List<Token>();
+            return GetResults(fileGroups, termGroups, proximity);
+        }
 
-                        var data = indexReader.Get(term);
-                        if (data != null)
-                        {
-                            var deserialized = TokenSerializer.Deserialize(data).ToList();
-                            tokens[term].AddRange(deserialized);
-                        }
-                    }
-                }
-            }
-
-            var fileGroups = new Dictionary<string, Dictionary<string, Postings[]>>();
-
-            foreach (var group in termGroups)
-            {
-                foreach (var term in group)
-                {
-                    foreach (var token in tokens[term])
-                    {
-                        if (!fileGroups.ContainsKey(token.FilePath))
-                            fileGroups[token.FilePath] = new Dictionary<string, Postings[]>();
-
-                        if (!fileGroups[token.FilePath].ContainsKey(term))
-                            fileGroups[token.FilePath][term] = token.Postings.OrderBy(p => p.Position).ToArray();
-                    }
-                }
-            }
-
+        static List<SearchResult> GetResults(Dictionary<string, Dictionary<string, Postings[]>> fileGroups,
+            List<string[]> termGroups, int proximity)
+        {
             var results = new List<SearchResult>();
 
             foreach (var fileEntry in fileGroups)
@@ -67,7 +37,7 @@ namespace IndexerLib.IndexManger
                 var filePath = fileEntry.Key;
                 var termPostings = fileEntry.Value;
 
-                var combinations = CartesianProduct(termGroups);
+                var combinations = Cartesian.Product(termGroups);
 
                 foreach (var combo in combinations)
                 {
@@ -118,22 +88,55 @@ namespace IndexerLib.IndexManger
                     }
                 }
             }
-
             return results;
         }
 
-        private static IEnumerable<List<string>> CartesianProduct(List<string[]> sequences)
+        static Dictionary<string, List<Token>> GetTokens(List<string[]> termGroups)
         {
-            IEnumerable<List<string>> result = new[] { new List<string>() };
+            var tokens = new Dictionary<string, List<Token>>();
 
-            foreach (var sequence in sequences)
+            using (var indexReader = new IndexReader())
             {
-                result = from acc in result
-                         from item in sequence
-                         select new List<string>(acc) { item };
+                foreach (var group in termGroups)
+                {
+                    foreach (var term in group)
+                    {
+                        if (!tokens.ContainsKey(term))
+                            tokens[term] = new List<Token>();
+
+                        var data = indexReader.Get(term);
+                        if (data != null)
+                        {
+                            var deserialized = TokenSerializer.Deserialize(data).ToList();
+                            tokens[term].AddRange(deserialized);
+                        }
+                    }
+                }
             }
 
-            return result;
+            return tokens;
+        }
+
+        static Dictionary<string, Dictionary<string, Postings[]>> GetFileGroups(List<string[]> termGroups, Dictionary<string, List<Token>> tokens)
+        {
+            var fileGroups = new Dictionary<string, Dictionary<string, Postings[]>>();
+
+            foreach (var group in termGroups)
+            {
+                foreach (var term in group)
+                {
+                    foreach (var token in tokens[term])
+                    {
+                        if (!fileGroups.ContainsKey(token.FilePath))
+                            fileGroups[token.FilePath] = new Dictionary<string, Postings[]>();
+
+                        if (!fileGroups[token.FilePath].ContainsKey(term))
+                            fileGroups[token.FilePath][term] = token.Postings.OrderBy(p => p.Position).ToArray();
+                    }
+                }
+            }
+
+            return fileGroups;
         }
     }
 }

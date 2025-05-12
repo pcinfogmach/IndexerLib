@@ -96,9 +96,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Helpers\ByteArrayComparer.cs" />
+    <Compile Include="Helpers\Cartesian.cs" />
+    <Compile Include="Helpers\Levenshtein.cs" />
     <Compile Include="IndexManger\AdvancedSearch.cs" />
     <Compile Include="IndexManger\FilesIndexer.cs" />
     <Compile Include="IndexManger\IndexMerger.cs" />
+    <Compile Include="IndexManger\QueryParser.cs" />
     <Compile Include="IndexManger\SearchResult.cs" />
     <Compile Include="IndexManger\WAL.cs" />
     <Compile Include="Index\IndexKey.cs" />

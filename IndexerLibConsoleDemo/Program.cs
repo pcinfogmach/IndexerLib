@@ -19,7 +19,7 @@ namespace IndexerLibConsoleDemo
             //var files = Directory.GetFiles(toratEmet, "*", SearchOption.AllDirectories);
             //FileIndexer.CreateIndex(files);
 
-            var results = AdvancedSearch.UnorderedProximitySearch("כי | אבל ביצחק", proximity: 3);
+            var results = AdvancedSearch.UnorderedProximitySearch("כי~ ביצחק~", proximity: 3);
             var generator = new SnippetGenerator();
 
             foreach (var res in results)
