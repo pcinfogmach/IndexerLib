@@ -15,7 +15,7 @@ namespace IndexerLibConsoleDemo
             Console.OutputEncoding = Encoding.GetEncoding("Windows-1255");
 
             //string indexPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Index");
-            //string toratEmet = "C:\\Users\\Admin\\Desktop\\תורת אמת\\01_תנך";
+            //string toratEmet = "C:\\Users\\Admin\\Desktop\\תורת אמת";
             //var files = Directory.GetFiles(toratEmet, "*", SearchOption.AllDirectories);
             //FileIndexer.CreateIndex(files);
 

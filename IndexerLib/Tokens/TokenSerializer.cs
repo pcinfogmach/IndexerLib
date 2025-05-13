@@ -37,7 +37,7 @@ namespace IndexerLib.Tokens
 
         static void DoSerialization(BinaryWriter writer, Token token)
         {
-            writer.Write(token.FilePath ?? string.Empty);
+            writer.Write(token.ID ?? string.Empty);
             writer.Write(token.Postings.Count);
 
             foreach (var p in token.Postings)
@@ -62,7 +62,7 @@ namespace IndexerLib.Tokens
                     Token token;
                     try
                     {
-                        token = new Token { FilePath = reader.ReadString() };
+                        token = new Token { ID = reader.ReadString() };
                         int count = reader.ReadInt32();
                         for (int i = 0; i < count; i++)
                         {

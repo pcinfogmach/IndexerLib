@@ -81,13 +81,16 @@ namespace IndexerLib.Tokens
                 stringBuilder.Clear();
 
                 if (!tokens.ContainsKey(cleanedWord))
-                    tokens[cleanedWord] = new Token { FilePath = path };
+                    tokens[cleanedWord] = new Token { ID = path };
+                
                 tokens[cleanedWord].Postings.Add(new Postings
                 {
                     Length = word.Length,
-                    Position = position++,
+                    Position = position,
                     StartIndex = currentIndex - word.Length
                 });
+
+                position++;
             }
 
             return tokens;

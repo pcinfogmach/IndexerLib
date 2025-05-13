@@ -36,10 +36,10 @@ namespace IndexerLib.IndexManager
             {
                 foreach (var token in tokens[term])
                 {
-                    if (!fileGroups.ContainsKey(token.FilePath))
-                        fileGroups[token.FilePath] = new Dictionary<string, Postings[]>();
+                    if (!fileGroups.ContainsKey(token.ID))
+                        fileGroups[token.ID] = new Dictionary<string, Postings[]>();
 
-                    fileGroups[token.FilePath][term] = token.Postings.OrderBy(p => p.Position).ToArray(); // Ensure sorted
+                    fileGroups[token.ID][term] = token.Postings.OrderBy(p => p.Position).ToArray(); // Ensure sorted
                 }
             }
 
