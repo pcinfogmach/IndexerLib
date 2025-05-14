@@ -18,6 +18,7 @@ namespace IndexerLibConsoleDemo
 
             string indexPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Index");
             //string toratEmet = "C:\\אוצריא\\אוצריא";
+            //string toratEmet = "C:\\Users\\Admin\\Desktop\\תורת אמת\\01_תנך\\001_תורה\\01_חומש בראשית";
             //string toratEmet = "C:\\Users\\Admin\\Desktop\\תורת אמת\\01_תנך\\001_תורה";
             //string toratEmet = "C:\\Users\\Admin\\Desktop\\תורת אמת\\01_תנך";
             string toratEmet = "C:\\Users\\Admin\\Desktop\\תורת אמת";
@@ -26,7 +27,7 @@ namespace IndexerLibConsoleDemo
             var files = exts.SelectMany(ext => Directory.GetFiles(toratEmet, ext, SearchOption.AllDirectories)).ToArray();
             //FileIndexer.CreateIndex(files);
 
-            var results = Search.GetSnippets("כי~ ביצחק~", proximity: 3);
+            var results = Search.GetSnippets("כי ביצחק יקרא לך זרע", proximity: 3);
             foreach (var r in results)
             {
                 foreach (var s in r.Snippets)

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace IndexerLib.IndexManager
 {
@@ -36,7 +37,7 @@ namespace IndexerLib.IndexManager
                     int snippetLength = snippetEnd - snippetStart;
 
                     string snippet = content.Substring(snippetStart, snippetLength);
-
+                    snippet = Regex.Replace(snippet, @"(?:<[^\s]+>)|(?:<[^\s]+)|(?:[^\s]+>)", "");
                     // Adjust offsets for highlight
                     var highlights = match
                         .OrderBy(p => p.StartIndex)

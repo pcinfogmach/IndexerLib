@@ -100,18 +100,18 @@
   <ItemGroup>
     <Compile Include="Helpers\BloomFilter.cs" />
     <Compile Include="Helpers\ByteArrayComparer.cs" />
-    <Compile Include="Helpers\Cartesian.cs" />
+    <Compile Include="Helpers\CartesianProduct.cs" />
     <Compile Include="Helpers\CompactInt.cs" />
     <Compile Include="Helpers\MyBinaryReader.cs" />
     <Compile Include="Helpers\MyBinaryWriter.cs" />
     <Compile Include="Helpers\HebrewLongWordUtils.cs" />
     <Compile Include="Helpers\OcrFixer.cs" />
     <Compile Include="Helpers\Levenshtein.cs" />
+    <Compile Include="IndexManger\Search - Copy.cs" />
     <Compile Include="IndexManger\Search.cs" />
     <Compile Include="IndexManger\FilesIndexer.cs" />
     <Compile Include="IndexManger\IndexMerger.cs" />
     <Compile Include="IndexManger\QueryParser.cs" />
-    <Compile Include="IndexManger\SearchResult.cs" />
     <Compile Include="IndexManger\WAL.cs" />
     <Compile Include="IndexManger\WordListManager.cs" />
     <Compile Include="Index\IdStore.cs" />

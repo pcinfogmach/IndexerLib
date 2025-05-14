@@ -1,161 +1,150 @@
-﻿using IndexerLib.Helpers;
-using IndexerLib.Index;
+﻿using IndexerLib.Index;
 using IndexerLib.IndexManager;
 using IndexerLib.Tokens;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace IndexerLib.IndexManger
 {
     public static class Search
     {
-        public static List<SnippetCollection> GetSnippets(string query, int proximity = 3)
+        public static IEnumerable<SnippetCollection> GetSnippets(string query, short proximity = 3)
         {
             var results = UnorderedProximitySearch(query, proximity)
                 .GroupBy(r => r.FileId);
 
             Console.WriteLine("Generating Snippets..." + DateTime.Now);
-            List<SnippetCollection> snippets = new List<SnippetCollection>();
             using (var idStore = new IdStore())
                 foreach (var result in results)
-                    snippets.Add(SnippetGenerator.Generate(idStore, result));
-
-            return snippets;
+                    yield return SnippetGenerator.Generate(idStore, result);
         }
-        public static List<SearchResult> UnorderedProximitySearch(string query, int proximity = 3)
+
+        public static List<SearchResult> UnorderedProximitySearch(string query, short proximity = 3)
         {
             Console.WriteLine("Parsing query..." + DateTime.Now);
-            query = Regex.Replace(query, @"\s*\|\s*", "|");
-            query = Regex.Replace(query, @"\s*\~", "~");
+            var termGroups = QueryParser.Parse(query);
 
-            var termGroups = query
-                 .Trim()
-                 .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                 .Select(t => QueryParser.Parse(t).ToArray())
-                 .ToList();
+            if (termGroups.Count > 3)
+                proximity = (short)(proximity * (termGroups.Count - 2) + termGroups.Count);
+            else
+                proximity = (short)(proximity + termGroups.Count);
 
-            Console.WriteLine("Quereying Index..." + DateTime.Now);
+                Console.WriteLine("Querying index..." + DateTime.Now);
             var tokens = GetTokens(termGroups);
-            Console.WriteLine("Sorting..." + DateTime.Now);
-            var fileGroups = GetFileGroups(termGroups, tokens);
-            Console.WriteLine("Filtering valid results..." + DateTime.Now);
-            return GetResults(fileGroups, termGroups, proximity);
+            Console.WriteLine("Grouping by doc..." + DateTime.Now);
+            var docGroups = GroupByDocId(tokens);
+            Console.WriteLine("Generating results..." + DateTime.Now);
+            return GetResults(docGroups, proximity);
         }
 
-        static List<SearchResult> GetResults(Dictionary<int, Dictionary<string, Postings[]>> fileGroups,
-            List<string[]> termGroups, int proximity)
+        //tokens are groups by order of termgroups
+        static Dictionary<int, List<Token>> GetTokens(List<List<string>> termGroups)
+        {
+            var tokenDict = new Dictionary<int, List<Token>>();
+            using (var reader = new IndexReader(true))
+            {
+                for (int i = 0; i < termGroups.Count; i++)
+                {
+                    tokenDict[i] = new List<Token>();
+                    foreach (var term in termGroups[i])
+                    {
+                        var data = reader.Get(term);
+                        if (data != null)
+                            tokenDict[i].AddRange(TokenSerializer.Deserialize(data));
+                    }
+                }
+            }
+            return tokenDict;
+        }
+
+        static Dictionary<int, List<Token>> GroupByDocId(Dictionary<int, List<Token>> tokens)
+        {
+            var resultGroups = new Dictionary<int, List<Token>>();
+            foreach (var tokenGroup in tokens)
+            {
+                var idGroups = tokenGroup.Value.GroupBy(t => t.ID);
+                foreach (var idGroup in idGroups)
+                {
+                    var postings = idGroup.SelectMany(t => t.Postings).OrderBy(p => p.Position);
+
+                    if (!resultGroups.ContainsKey(idGroup.Key))
+                        resultGroups[idGroup.Key] = new List<Token>();
+
+                    resultGroups[idGroup.Key].Add(new Token
+                    {
+                        ID = idGroup.Key,
+                        Postings = postings.ToList()
+                    });
+
+                }
+            }
+            return resultGroups;
+        }
+
+        static List<SearchResult> GetResults(Dictionary<int, List<Token>> docGroups, short proximity)
         {
             var results = new List<SearchResult>();
 
-            foreach (var fileEntry in fileGroups)
+            foreach (var docEntry in docGroups)
             {
-                int Id = fileEntry.Key;
-                var termPostings = fileEntry.Value;
+                var postingsLists = docEntry.Value
+                    .Select(token => token.Postings)
+                    .Where(p => p.Count > 0)
+                    .ToList();
 
-                var combinations = Cartesian.Product(termGroups);
+                // Skip documents that don't have all term groups
+                if (postingsLists.Count != docEntry.Value.Count)
+                    continue;
 
-                foreach (List<string> combo in combinations)
+                var indices = new int[postingsLists.Count];
+                var matches = new List<Postings[]>();
+
+                while (true)
                 {
-                    if (combo.Any(t => !termPostings.ContainsKey(t)))
-                        continue;
+                    var currentPositions = new List<(int position, int listIndex)>();
 
-                    var iterators = combo
-                        .Select(t => termPostings[t])
-                        .Select(p => new Queue<Postings>(p))
-                        .ToList();
-
-                    var activeWindow = new List<Postings>();
-
-                    while (iterators.All(q => q.Count > 0))
+                    for (int i = 0; i < postingsLists.Count; i++)
                     {
-                        activeWindow.Clear();
-                        foreach (var queue in iterators)
-                            activeWindow.Add(queue.Peek());
+                        if (indices[i] >= postingsLists[i].Count)
+                            goto End; // One list exhausted, done with this document
 
-                        int minPos = activeWindow.Min(p => p.Position);
-                        int maxPos = activeWindow.Max(p => p.Position);
+                        currentPositions.Add((postingsLists[i][indices[i]].Position, i));
+                    }
 
-                        if (maxPos - minPos <= proximity)
-                        {
-                            var result = results.FirstOrDefault(r => r.FileId == Id);
-                            if (result == null)
-                            {
-                                result = new SearchResult { FileId = Id };
-                                results.Add(result);
-                            }
+                    var min = currentPositions.Min(x => x.position);
+                    var max = currentPositions.Max(x => x.position);
 
-                            result.MatchedPostings.Add(activeWindow.ToArray());
+                    if (max - min <= proximity)
+                    {
+                        // Collect current combination
+                        matches.Add(indices.Select((idx, i) => postingsLists[i][idx]).ToArray());
 
-                            for (int i = 0; i < iterators.Count; i++)
-                            {
-                                iterators[i].Dequeue();
-                            }
-                        }
-                        else
-                        {
-                            int minIndex = activeWindow
-                                .Select((p, idx) => (p, idx))
-                                .OrderBy(t => t.p.Position)
-                                .First().idx;
-
-                            iterators[minIndex].Dequeue();
-                        }
+                        // Advance all pointers (to find more matches)
+                        for (int i = 0; i < indices.Length; i++)
+                            indices[i]++;
+                    }
+                    else
+                    {
+                        // Advance the pointer for the list with the smallest position
+                        int minIndex = currentPositions.First(x => x.position == min).listIndex;
+                        indices[minIndex]++;
                     }
                 }
+
+            End:
+                if (matches.Count > 0)
+                {
+                    results.Add(new SearchResult
+                    {
+                        FileId = docEntry.Key,
+                        MatchedPostings = matches
+                    });
+                }
             }
+
             return results;
         }
 
-        static Dictionary<string, List<Token>> GetTokens(List<string[]> termGroups)
-        {
-            var tokens = new Dictionary<string, List<Token>>();
-
-            using (var indexReader = new IndexReader(true))
-            {
-                foreach (var group in termGroups)
-                {
-                    foreach (var term in group)
-                    {
-                        if (!tokens.ContainsKey(term))
-                            tokens[term] = new List<Token>();
-
-                        var data = indexReader.Get(term);
-                        if (data != null)
-                        {
-                            var deserialized = TokenSerializer.Deserialize(data).ToList();
-                            tokens[term].AddRange(deserialized);
-                        }
-                    }
-                }
-            }
-
-            return tokens;
-        }
-
-        static Dictionary<int, Dictionary<string, Postings[]>> GetFileGroups(
-            List<string[]> termGroups,
-            Dictionary<string, List<Token>> tokens)
-        {
-            var fileGroups = new Dictionary<int, Dictionary<string, Postings[]>>();
-
-            foreach (var group in termGroups)
-            {
-                foreach (var term in group)
-                {
-                    foreach (var token in tokens[term])
-                    {
-                        if (!fileGroups.ContainsKey(token.ID))
-                            fileGroups[token.ID] = new Dictionary<string, Postings[]>();
-
-                        if (!fileGroups[token.ID].ContainsKey(term))
-                            fileGroups[token.ID][term] = token.Postings.OrderBy(p => p.Position).ToArray();
-                    }
-                }
-            }
-
-            return fileGroups;
-        }
     }
 }
