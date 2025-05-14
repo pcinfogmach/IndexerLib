@@ -1,4 +1,5 @@
 ﻿using IndexerLib.Helpers;
+using IndexerLib.IndexManger;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,18 +11,19 @@ namespace IndexerLib.Index
     public class IndexWriter : IndexBase, IDisposable
     {
         private FileStream fileStream;
-        BinaryWriter writer;
+        MyBinaryWriter writer;
 
         private long currentOffset = 0;
         Dictionary<byte[], IndexKey> Keys = new Dictionary<byte[], IndexKey>();
+        HashSet<string> Words = new HashSet<string>();
 
-        public IndexWriter(string fileName = "db", string directoryName = "Index") : base(fileName, directoryName)
+        public IndexWriter(bool loadWordsDictionary, string fileName = "db", string directoryName = "Index") : base(loadWordsDictionary, fileName, directoryName)
         {
             while(File.Exists(FilePath))
                 FilePath = Path.Combine(DirectoryPath, Path.GetFileNameWithoutExtension(FilePath) + "+.index");
 
             fileStream = new FileStream(FilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite);
-            writer = new BinaryWriter(fileStream, Encoding.UTF8, leaveOpen: true);
+            writer = new MyBinaryWriter(fileStream, Encoding.UTF8, leaveOpen: true);
         }
 
         public void Put(byte[] data, byte[] hash = null, string key = "")
@@ -32,7 +34,7 @@ namespace IndexerLib.Index
             if (hash == null)
                 hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
 
-            if (!string.IsNullOrWhiteSpace(key))
+            if (Words != null && !string.IsNullOrWhiteSpace(key))
                 Words.Add(key);
 
             writer.Write(data, 0, data.Length);
@@ -51,7 +53,7 @@ namespace IndexerLib.Index
         {
             AppendKeys(); // must happen before disposal
 
-            File.WriteAllLines(WordsFile, Words.OrderBy(k => k));
+            WordListManager.AddRange(Words);
 
             writer.Flush();  
             writer.Dispose(); 

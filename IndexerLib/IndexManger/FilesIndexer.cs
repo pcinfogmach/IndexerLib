@@ -40,9 +40,6 @@ namespace IndexerLib.IndexManger
             progressTimer.Stop();
             progressTimer.Dispose();
 
-            Console.WriteLine("Merge Start...");
-            IndexMerger.Merge();
-
             Console.WriteLine($"Indexing complete! start time: {indexStart} end time: {DateTime.Now} total time: {DateTime.Now - indexStart}");
         }
     }

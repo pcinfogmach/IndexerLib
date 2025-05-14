@@ -11,7 +11,7 @@ namespace IndexerLib.Index
     {
         ByteArrayComparer byteComparer = new ByteArrayComparer();
         FileStream fileStream;
-        BinaryReader reader;
+        MyBinaryReader reader;
         long indexStart;
         int indexCount;
         IEnumerator<IndexKey> _enumerator;
@@ -27,7 +27,7 @@ namespace IndexerLib.Index
         }
 
 
-        public IndexReader(string fileName = "db", string directoryName = "Index") : base(fileName, directoryName)
+        public IndexReader(bool loadWordsDictionary, string fileName = "db", string directoryName = "Index") : base(loadWordsDictionary, fileName, directoryName)
         {
             InitializeIndex();
         }
@@ -48,7 +48,7 @@ namespace IndexerLib.Index
             fileStream?.Dispose();  
             
             fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
-            reader = new BinaryReader(fileStream, Encoding.UTF8, leaveOpen: true);
+            reader = new MyBinaryReader(fileStream, Encoding.UTF8, leaveOpen: true);
             LoadIndexMetadata();
         }
 
@@ -77,7 +77,7 @@ namespace IndexerLib.Index
                 return;
 
             fileStream.Seek(-8, SeekOrigin.End);
-            ulong footer = new BinaryReader(fileStream).ReadUInt64();
+            ulong footer = new MyBinaryReader(fileStream).ReadUInt64();
 
             if ((ushort)(footer >> 48) != MagicMarker)
                 throw new InvalidDataException("Invalid footer/magic marker");

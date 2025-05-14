@@ -11,40 +11,47 @@ namespace IndexerLib.IndexManger
 {
     public static class QueryParser
     {
-        public static List<string> ParseTerm(string input)
+        public static List<string> Parse(string input)
         {
-            string wordsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Index", "Keys.txt");
-            var allWords = File.ReadLines(wordsFile).ToList();
+            var splitRaw = input.Split('|').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
 
+            if (!WordListManager.Exists)
+                return splitRaw; // אם הקובץ לא קיים – פשוט נחזיר את המילים שהוזנו
+
+            var allWords = WordListManager.Words;
             var results = new List<string>();
 
-            var splitRaw = input.Split('|');
-            foreach (var rawTerm in splitRaw)
+            foreach (var word in allWords)
             {
-                if (rawTerm.Contains("*") || rawTerm.Contains("?"))
+                foreach (var rawTerm in splitRaw)
                 {
-                    // Convert to Regex
-                    var pattern = "^" + Regex.Escape(rawTerm)
-                        .Replace(@"\*", ".*")
-                        .Replace(@"\?", ".") + "$";
-                    var regex = new Regex(pattern, RegexOptions.IgnoreCase);
+                    if (rawTerm.Contains("*") || rawTerm.Contains("?"))
+                    {
+                        var pattern = "^" + Regex.Escape(rawTerm)
+                            .Replace(@"\*", ".*")
+                            .Replace(@"\?", ".") + "$";
+                        var regex = new Regex(pattern, RegexOptions.IgnoreCase);
 
-                    results = allWords.Where(word => regex.IsMatch(word)).ToList();
-                }
-                else if (rawTerm.EndsWith("~"))
-                {
-                    var term = rawTerm.TrimEnd('~');
+                        if (regex.IsMatch(word))
+                            results.Add(word);
+                        //results.AddRange(allWords.Where(word => regex.IsMatch(word)));
+                    }
+                    else if (rawTerm.EndsWith("~"))
+                    {
+                        if (Levenshtein.Distance(word, rawTerm.TrimEnd('~')) < 2)
+                            results.Add(word);
 
-                    results.AddRange(allWords
-                        .Where(word => Levenshtein.Distance(word, term) < 2)
-                        .ToList());
-                }
-                else
-                {
-                    results.Add(rawTerm); // Exact term
+                        //results.AddRange(allWords.Where(word => Levenshtein.Distance(word, term) < 2));
+                    }
+                    else
+                    {
+                        results.Add(rawTerm);
+                    }
                 }
             }
-            return results;
+
+            return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
+
     }
 }

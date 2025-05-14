@@ -5,7 +5,7 @@ namespace IndexerLib
 {
     public class Token
     {
-        public string ID { get; set; }
+        public int ID { get; set; }
         public List<Postings> Postings { get; set; } = new List<Postings>();
     }
 

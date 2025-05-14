@@ -1,49 +1,61 @@
 ﻿using IndexerLib.Helpers;
 using IndexerLib.Index;
+using IndexerLib.Tokens;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Security;
+using System.Text;
 
 namespace IndexerLib.IndexManger
 {
     public static class IndexMerger
     {
-        public static void Merge()
+        public static string Merge(List<string> files)
         {
-            var writer = new IndexWriter("merged");
+            var startTime = DateTime.Now;
+            Console.WriteLine($"Merge Start: {startTime}");
+            //var files = writer.GetAllIndexFiles().ToList();
+            //files.Remove(writer.FilePath);
 
-            var indexReaders = new List<IndexReader>();
-            var files = writer.GetAllIndexFiles().ToList();
-            files.Remove(writer.FilePath);
-
-            if (files.Count < 2)
+            string writerPath;
+            using (var writer = new IndexWriter(false, "merged"))
             {
-                writer.Dispose();
-                File.Delete(writer.FilePath);
-                return;
+                writerPath = writer.FilePath;
+                var indexReaders = new List<IndexReader>();
+
+                //if (files.Count < 2)
+                //{
+                //    writer.Dispose();
+                //    File.Delete(writer.FilePath);
+                //    return null;
+                //}
+
+                foreach (var file in files)
+                {
+                    if (file == writer.FilePath)
+                        continue;
+
+                    var newReader = new IndexReader(false, file);
+                    if (newReader.Enumerator.MoveNext())
+                        indexReaders.Add(newReader);
+                }
+
+                ReadAndMerge(indexReaders, writer);
+
+                foreach (var indexReader in indexReaders)
+                    indexReader.Dispose();
+
+                foreach (var file in files)
+                    if (File.Exists(file) && file != writer.FilePath)
+                        File.Delete(file);
+
             }
 
-            foreach (var file in files)
-            {
-                if (file == writer.FilePath)
-                    continue;
-
-                var newReader = new IndexReader(file);
-                if (newReader.Enumerator.MoveNext())
-                    indexReaders.Add(newReader);
-            }
-
-            ReadAndMerge(indexReaders, writer);
-
-            foreach (var indexReader in indexReaders)
-                indexReader.Dispose();
-
-            foreach (var file in files)
-                if (File.Exists(file) && file != writer.FilePath)
-                    File.Delete(file);
-
-            writer.Dispose();
+            var timeNow = DateTime.Now;
+            Console.WriteLine($"Merge Ended: {timeNow} Total: {startTime - timeNow}");
+            return writerPath;
         }
 
         static void ReadAndMerge(List<IndexReader> indexReaders, IndexWriter writer)
@@ -99,29 +111,53 @@ namespace IndexerLib.IndexManger
 
         static byte[] MergeBlocks(IEnumerable<IndexReader> indexReaders)
         {
-            var uniqueBlocks = new HashSet<byte[]>(new ByteArrayEqualityComparer());
-            var mergedBlocks = new List<byte[]>();
+            var mergedTokens = new Dictionary<int, byte[]>(); // tokenID → tokenBytes
 
-            foreach (var index in indexReaders)
+            foreach (var reader in indexReaders)
             {
-                var block = index.ReadBlock(index.Enumerator.Current);
+                var key = reader.Enumerator.Current;
+                var block = reader.ReadBlock(key);
                 if (block == null) continue;
 
-                if (uniqueBlocks.Add(block))
-                    mergedBlocks.Add(block);
+                using (var ms = new MemoryStream(block))
+                using (var bReader = new MyBinaryReader(ms, Encoding.UTF8))
+                {
+                    while (ms.Position < ms.Length)
+                    {
+                        var startPos = ms.Position;
+                        var tokenId = bReader.Read7BitEncodedInt();
+                        int count = bReader.Read7BitEncodedInt();
+                        for (int i = 0; i < count * 3; i++)
+                            bReader.Read7BitEncodedInt();
+
+                        var length = ms.Position - startPos;
+                        var buffer = new byte[length];
+                        ms.Position = startPos;
+                        bReader.Read(buffer, 0, buffer.Length);
+                        mergedTokens[tokenId] = buffer;
+
+                        //multply the count by *  lenngth of 7BitEncodedInt to get length of entry
+                        //ms.Position = startPos;
+                        // add to length the diff
+                        // get block from start pos to finalazed length
+                       // mergedTokens[tokenId] = block
+                       // get next block
+                    }
+                }
             }
 
-            int totalLength = mergedBlocks.Sum(b => b.Length);
-            var merged = new byte[totalLength];
+            // Merge all token bytes
+            int totalSize = mergedTokens.Sum(t => t.Value.Length);
+            var result = new byte[totalSize];
             int offset = 0;
 
-            foreach (var block in mergedBlocks)
+            foreach (var pair in mergedTokens.OrderBy(p => p.Key)) // sort optional
             {
-                Buffer.BlockCopy(block, 0, merged, offset, block.Length);
-                offset += block.Length;
+                Buffer.BlockCopy(pair.Value, 0, result, offset, pair.Value.Length);
+                offset += pair.Value.Length;
             }
 
-            return merged;
+            return result;
         }
     }
 }

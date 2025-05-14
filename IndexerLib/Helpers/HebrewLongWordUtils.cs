@@ -3,7 +3,7 @@
     using System;
     using System.Linq;
 
-    public static class HebrewWordUtils
+    public static class HebrewLongWordUtils
     {
         // Check if the word is "impossibly long" based on the heuristics
         public static bool IsImpossiblyLongHebrew(string word, int maxLength = 20, int maxRepeatingCount = 4)

@@ -1,87 +1,90 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
+using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Text;
+using IndexerLib.Helpers;
 
 namespace IndexerLib.Tokens
 {
     public static class TokenSerializer
     {
-        // Serializes multiple tokens consecutively
-        public static byte[] SerializeMany(List<Token> tokens)
-        {
-            using (var ms = new MemoryStream())
-            using (var writer = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
-            {
-                foreach (var token in tokens)
-                    DoSerialization(writer, token);
-
-                writer.Flush();
-                return ms.ToArray();
-            }
-        }
-
-
         public static byte[] Serialize(Token token)
         {
             using (var ms = new MemoryStream())
-                using (var writer = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
-                {
-                    DoSerialization(writer, token);
-
-                    writer.Flush();
+            using (var writer = new MyBinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
+            {
+                DoSerialization(writer, token);
                 return ms.ToArray();
             }
         }
 
-        static void DoSerialization(BinaryWriter writer, Token token)
+        static void DoSerialization(MyBinaryWriter writer, Token token)
         {
-            writer.Write(token.ID ?? string.Empty);
-            writer.Write(token.Postings.Count);
+            writer.Write7BitEncodedInt(token.ID);
+            writer.Write7BitEncodedInt(token.Postings.Count);
 
-            foreach (var p in token.Postings)
+            int prevPos = 0, prevStart = 0;
+            foreach (var p in token.Postings.OrderBy(x => x.Position))
             {
-                writer.Write(p.Position);
-                writer.Write(p.StartIndex);
-                writer.Write(p.Length);
+                writer.Write7BitEncodedInt(p.Position - prevPos);
+                writer.Write7BitEncodedInt(p.StartIndex - prevStart);
+                writer.Write7BitEncodedInt(p.Length);
+
+                prevPos = p.Position;
+                prevStart = p.StartIndex;
             }
         }
 
 
-        // Deserializes the consecutive tokens one by one
+        // Deserializes the consecutive tokens one by one using delta decoding
         public static IEnumerable<Token> Deserialize(byte[] data)
         {
             if (data == null)
-                yield return null;
+                yield break;
+
             using (var ms = new MemoryStream(data))
-            using (var reader = new BinaryReader(ms, Encoding.UTF8))
+            using (var reader = new MyBinaryReader(ms, Encoding.UTF8))
             {
-                while (true)
+                while (ms.Position < ms.Length)
                 {
-                    Token token;
-                    try
-                    {
-                        token = new Token { ID = reader.ReadString() };
-                        int count = reader.ReadInt32();
-                        for (int i = 0; i < count; i++)
-                        {
-                            token.Postings.Add(new Postings
-                            {
-                                Position = reader.ReadInt32(),
-                                StartIndex = reader.ReadInt32(),
-                                Length = reader.ReadInt32()
-                            });
-                        }
-                    }
-                    catch (EndOfStreamException)
-                    {
+                    var token = DoDeserialize(reader);
+                    if (token == null)
                         yield break;
-                    }
 
                     yield return token;
                 }
             }
         }
+
+        static Token DoDeserialize(MyBinaryReader reader)
+        {
+            try
+            {
+                var token = new Token { ID = reader.Read7BitEncodedInt() };
+
+                int count = reader.Read7BitEncodedInt();
+                int prevPos = 0, prevStart = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    prevPos += reader.Read7BitEncodedInt();
+                    prevStart += reader.Read7BitEncodedInt();
+                    int len = reader.Read7BitEncodedInt();
+
+                    token.Postings.Add(new Postings
+                    {
+                        Position = prevPos,
+                        StartIndex = prevStart,
+                        Length = len
+                    });
+                }
+                return token;
+            }
+            catch (EndOfStreamException)
+            {
+                return null;
+            }
+        }
+
     }
 }

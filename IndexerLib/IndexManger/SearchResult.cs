@@ -4,7 +4,7 @@ namespace IndexerLib.IndexManger
 {
     public class SearchResult
     {
-        public string FilePath { get; set; }
+        public int FileId { get; set; }
         public List<Postings[]> MatchedPostings { get; set; } = new List<Postings[]>();
     }
 }

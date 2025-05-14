@@ -20,6 +20,10 @@ namespace IndexerLib.Tokens
 
             StringBuilder stringBuilder = new StringBuilder();
 
+            int pathId = 0;
+            using (var idStore = new IdStore())
+                pathId = idStore.Add(path);
+
             for (int i = 0; i < text.Length; i++)
             {
                 currentIndex = i;
@@ -81,7 +85,7 @@ namespace IndexerLib.Tokens
                 stringBuilder.Clear();
 
                 if (!tokens.ContainsKey(cleanedWord))
-                    tokens[cleanedWord] = new Token { ID = path };
+                    tokens[cleanedWord] = new Token { ID = pathId };
                 
                 tokens[cleanedWord].Postings.Add(new Postings
                 {

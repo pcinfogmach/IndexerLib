@@ -10,24 +10,16 @@ namespace IndexerLib.Index
     {
         protected SHA256 sha256 = SHA256.Create();
         protected const ushort MagicMarker = 0xCAFE;
-        public HashSet<string> Words { get; protected set; }
-        public string WordsFile { get; protected set; }
         public string FilePath { get; protected set; }
         public string DirectoryPath { get; protected set; }
 
-        public IndexBase(string fileName = "db", string directoryName = "Index") 
+        public IndexBase(bool loadWordDictionary, string fileName = "db", string directoryName = "Index") 
         {
             DirectoryPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, directoryName);
             FilePath = Path.Combine(DirectoryPath, $"{fileName.Replace(".index", "")}.index");
 
             if (!Directory.Exists(DirectoryPath))
                 Directory.CreateDirectory(DirectoryPath);
-
-            WordsFile = Path.Combine(DirectoryPath, "Keys.txt");
-
-            Words = new HashSet<string>(File.Exists(WordsFile)
-             ? File.ReadLines(WordsFile)
-             : Enumerable.Empty<string>());
         }
 
         public IEnumerable<string> GetAllIndexFiles()
